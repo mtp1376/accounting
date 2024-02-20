@@ -6,7 +6,7 @@ from django.utils import timezone
 from AccountingApp.models import Pocket, PocketPurpose
 from AccountingApp.models.contract import GharzolHasaneh
 from AccountingApp.models.debt import Debt
-from AccountingApp.models.money_movement import ContractPayment
+from AccountingApp.models.money_movement import ContractPayment, DebtRepayment
 from AccountingApp.models.party import Person
 
 
@@ -63,4 +63,15 @@ class TestSandogh(TestCase):
         )
         loan_giving_payment.commit()
 
-        print('done')
+        # now pay the debt
+        repayment_1 = DebtRepayment.objects.create(
+            amount=450_000,
+            from_pocket=taker_pocket,
+            to_pocket=box_pocket,
+            debt=installment_1,
+        )
+        repayment_1.commit()
+
+        print(
+            'yo'
+        )
