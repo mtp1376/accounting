@@ -1,27 +1,24 @@
 from django.db import models, transaction
-from django.utils.translation import gettext_lazy as _
 
-from AccountingApp.models.pocket import Pocket
+from AccountingApp.choices import MoneyMovementStateChoices
 from AccountingApp.models.contract import Contract
 from AccountingApp.models.debt import Debt
+from AccountingApp.models.pocket import Pocket
 
 
 class MoneyMovement(models.Model):
-    class StateChoices(models.TextChoices):
-        DRAFT = 'DRAFT', _('Draft')
-        IN_PROGRESS = 'IN_PROGRESS', _('In Progress')
-        COMMITTED = 'COMMITTED', _('Committed')
-
     amount = models.PositiveIntegerField()
     from_pocket = models.ForeignKey(Pocket, on_delete=models.PROTECT, related_name='money_outgoing')
     to_pocket = models.ForeignKey(Pocket, on_delete=models.PROTECT, related_name='money_incoming')
-    state = models.CharField(max_length=20, choices=StateChoices.choices, default=StateChoices.DRAFT)
+    state = models.CharField(
+        max_length=20, choices=MoneyMovementStateChoices.choices, default=MoneyMovementStateChoices.DRAFT
+    )
 
     def commit(self):
         with transaction.atomic():
             movement: MoneyMovement = MoneyMovement.objects.select_for_update().get(pk=self.pk)
 
-            movement.state = MoneyMovement.StateChoices.COMMITTED
+            movement.state = MoneyMovementStateChoices.COMMITTED
             movement.save()
 
             movement.from_pocket.discharge_amount(self.amount)
@@ -29,6 +26,9 @@ class MoneyMovement(models.Model):
 
 
 class ContractPayment(MoneyMovement):
+    """
+    پرداخت اولیه‌ی عقد که باعث جاری‌شدن اون عقد می‌شه
+    """
     contract = models.ForeignKey(Contract, on_delete=models.PROTECT, related_name='payments')
 
     def commit(self):

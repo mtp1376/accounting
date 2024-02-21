@@ -14,6 +14,10 @@ class Pocket(models.Model):
     """
     جیب
     """
+
+    class Meta:
+        unique_together = (('owner', 'purpose'),)
+
     owner = models.ForeignKey(Party, on_delete=models.PROTECT)
     purpose = models.ForeignKey(PocketPurpose, on_delete=models.RESTRICT)
     balance = models.PositiveIntegerField()

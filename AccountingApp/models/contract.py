@@ -1,7 +1,7 @@
 from django.db import models, transaction
 from django.db.models import Sum
-from django.utils.translation import gettext_lazy as _
 
+from AccountingApp.choices import ContractStateChoices, DebtStateChoices
 from AccountingApp.models.party import Party
 
 
@@ -9,6 +9,8 @@ class Contract(models.Model):
     """
     عقد
     """
+
+    state = models.CharField(choices=ContractStateChoices.choices, max_length=20, default=ContractStateChoices.DRAFT)
 
     def check_validity(self):
         if hasattr(self, 'gharzolhasaneh'):
@@ -18,20 +20,19 @@ class Contract(models.Model):
         with transaction.atomic():
             contract: Contract = Contract.objects.select_for_update().get(pk=self.pk)
             contract.check_validity()
-            contract.state = Contract.StateChoices.IN_PROGRESS
+            contract.state = ContractStateChoices.IN_PROGRESS
             contract.save()
 
-    class StateChoices(models.TextChoices):
-        DRAFT = 'DRAFT', _('Draft')
-        IN_PROGRESS = 'IN_PROGRESS', _('In Progress')
-        FINISHED = 'FINISHED', _('Finished')
-
-    state = models.CharField(choices=StateChoices.choices, max_length=20, default=StateChoices.DRAFT)
+    def signal_debt_repayment(self):
+        if hasattr(self, 'gharzolhasaneh'):
+            self.gharzolhasaneh.signal_debt_repayment()
 
 
 class GharzolHasaneh(Contract):
     """
     عقد قرض‌الحسنه
+    مُقرِض
+    مُقتَرِض
     """
 
     lender = models.ForeignKey(Party, on_delete=models.PROTECT, related_name='gharzes_given')
@@ -42,3 +43,11 @@ class GharzolHasaneh(Contract):
     def check_validity(self):
         if self.payments.aggregate(payments_sum=Sum('amount'))['payments_sum'] != self.amount:
             raise ValueError("Contract payments not done")
+
+    def _is_finished(self):
+        return not self.resulting_debts.exclude(state=DebtStateChoices.PAID).exists()
+
+    def signal_debt_repayment(self):
+        if self._is_finished():
+            self.state = ContractStateChoices.FINISHED
+            self.save(update_fields=['state'])
